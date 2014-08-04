@@ -16,16 +16,14 @@ static int timer()
     return ms;
 }
 
-static float *generate_samples(int num_samples)
+static void generate_samples(float *samples, int num_samples)
 {
-    float *samples = malloc(num_samples * sizeof(float));
     float f = M_PI;
     for (int i = 0; i < num_samples; ++i) {
         f *= M_PI;
         f -= floorf(f);
         samples[i] = f;
     }
-    return samples;
 }
 
 static int test(int (*fn)(float *, int, int), float *samples, int num_samples, int nbits)
@@ -42,8 +40,9 @@ static int test(int (*fn)(float *, int, int), float *samples, int num_samples, i
 
 static int test_ffmpeg(float *samples, int num_samples, int nbits)
 {
+    generate_samples(samples, num_samples);
     RDFTContext *cx = av_rdft_init(nbits, DFT_R2C);
-    int fft_size = 1 << (nbits - 1);
+    int fft_size = 1 << nbits;
 
     timer();
     for (int offset = 0; offset < num_samples - fft_size; offset += fft_size) {
@@ -58,12 +57,10 @@ static int test_ffmpeg(float *samples, int num_samples, int nbits)
 int main()
 {
     int num_samples = 6 * 60 * 44100; // 6 minutes of 44.1k signal
-
-    float *samples = generate_samples(num_samples);
+    float *samples = malloc(num_samples * sizeof(float));
 
     for (int nbits = 9; nbits <= 13; ++nbits) {
-        int ms = test(test_ffmpeg, samples, num_samples, nbits);
-        printf("ffmpeg\t%d\t%d ms\n", nbits, ms);
+        printf("ffmpeg\t%d\t%d ms\n", nbits, test(test_ffmpeg, samples, num_samples, nbits));
     }
 
     free(samples);
