@@ -56,11 +56,13 @@ static int test_ffmpeg(float *samples, int num_samples, int nbits)
 
 int main()
 {
-    int num_samples = 6 * 60 * 44100; // 6 minutes of 44.1k signal
-    float *samples = malloc(num_samples * sizeof(float));
+    int num_samples = 6 * 60 * 44100; // 6 minutes of 44.1 kHz signal
+    int alignment = 16; // for SIMD optimization
+    void *samples = malloc(num_samples * sizeof(float) + alignment);
+    float *aligned = (float *)((size_t)((char *)samples + alignment - 1) & ~(size_t)(alignment - 1));
 
     for (int nbits = 9; nbits <= 13; ++nbits) {
-        printf("ffmpeg\t%d\t%d ms\n", nbits, test(test_ffmpeg, samples, num_samples, nbits));
+        printf("ffmpeg\t%d\t%d ms\n", nbits, test(test_ffmpeg, aligned, num_samples, nbits));
     }
 
     free(samples);
