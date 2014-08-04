@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#include <fftw3.h>
 #include <libavcodec/avfft.h>
 
 // Returns time in ms since the last call.
@@ -11,7 +12,7 @@ static int timer()
     static struct timeval tv;
     struct timeval tv2;
     gettimeofday(&tv2, NULL);
-    int ms = (tv2.tv_sec - tv.tv_sec) * 1000 + (tv2.tv_usec - tv.tv_usec) / 1000;
+    int ms = (tv2.tv_sec - tv.tv_sec) * 1000 + (tv2.tv_usec - tv.tv_usec + 500) / 1000;
     tv = tv2;
     return ms;
 }
@@ -54,6 +55,22 @@ static int test_ffmpeg(float *samples, int num_samples, int nbits)
     return ms;
 }
 
+static int test_fftw(float *samples, int num_samples, int nbits)
+{
+    generate_samples(samples, num_samples);
+    int fft_size = 1 << nbits;
+    fftwf_plan p = fftwf_plan_dft_r2c_1d(fft_size, samples, (fftwf_complex*)samples, FFTW_ESTIMATE);
+
+    timer();
+    for (int offset = 0; offset < num_samples - fft_size; offset += fft_size) {
+        fftwf_execute_dft_r2c(p, samples + offset, (fftwf_complex *)(samples + offset));
+    }
+    int ms = timer();
+
+    fftwf_destroy_plan(p);
+    return ms;
+}
+
 int main()
 {
     int num_samples = 6 * 60 * 44100; // 6 minutes of 44.1 kHz signal
@@ -63,6 +80,7 @@ int main()
 
     for (int nbits = 9; nbits <= 13; ++nbits) {
         printf("ffmpeg\t%d\t%d ms\n", nbits, test(test_ffmpeg, aligned, num_samples, nbits));
+        printf("fftw\t%d\t%d ms\n", nbits, test(test_fftw, aligned, num_samples, nbits));
     }
 
     free(samples);
