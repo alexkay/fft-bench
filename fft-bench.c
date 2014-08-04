@@ -55,7 +55,7 @@ static int test_ffmpeg(float *samples, int num_samples, int nbits)
     return ms;
 }
 
-static int test_fftw(float *samples, int num_samples, int nbits)
+static int test_fftw_in(float *samples, int num_samples, int nbits)
 {
     generate_samples(samples, num_samples);
     int fft_size = 1 << nbits;
@@ -71,6 +71,24 @@ static int test_fftw(float *samples, int num_samples, int nbits)
     return ms;
 }
 
+static int test_fftw_out(float *samples, int num_samples, int nbits)
+{
+    generate_samples(samples, num_samples);
+    int fft_size = 1 << nbits;
+    fftwf_complex *output = fftwf_alloc_complex(fft_size / 2 + 1);
+    fftwf_plan p = fftwf_plan_dft_r2c_1d(fft_size, samples, output, FFTW_ESTIMATE);
+
+    timer();
+    for (int offset = 0; offset < num_samples - fft_size; offset += fft_size) {
+        fftwf_execute_dft_r2c(p, samples + offset, output);
+    }
+    int ms = timer();
+
+    fftwf_free(output);
+    fftwf_destroy_plan(p);
+    return ms;
+}
+
 int main()
 {
     int num_samples = 6 * 60 * 44100; // 6 minutes of 44.1 kHz signal
@@ -80,7 +98,8 @@ int main()
 
     for (int nbits = 9; nbits <= 13; ++nbits) {
         printf("ffmpeg\t%d\t%d ms\n", nbits, test(test_ffmpeg, aligned, num_samples, nbits));
-        printf("fftw\t%d\t%d ms\n", nbits, test(test_fftw, aligned, num_samples, nbits));
+        printf("fftw/in\t%d\t%d ms\n", nbits, test(test_fftw_in, aligned, num_samples, nbits));
+        printf("fftw/ou\t%d\t%d ms\n", nbits, test(test_fftw_out, aligned, num_samples, nbits));
     }
 
     free(samples);
