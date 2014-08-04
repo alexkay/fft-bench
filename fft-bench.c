@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#include <libavcodec/avfft.h>
+
 // Returns time in ms since the last call.
 static int timer()
 {
@@ -26,14 +28,44 @@ static float *generate_samples(int num_samples)
     return samples;
 }
 
-int main()
+static int test(int (*fn)(float *, int, int), float *samples, int num_samples, int nbits)
 {
-    int num_samples = 5 * 60 * 44100; // 5 minutes of 44.1k signal
+    int min_time = -1;
+    for (int i = 0; i < 5; ++i) {
+        int ms = fn(samples, num_samples, nbits);
+        if (min_time == -1 || ms < min_time) {
+            min_time = ms;
+        }
+    }
+    return min_time;
+}
+
+static int test_ffmpeg(float *samples, int num_samples, int nbits)
+{
+    RDFTContext *cx = av_rdft_init(nbits, DFT_R2C);
+    int fft_size = 1 << (nbits - 1);
 
     timer();
-    float *samples = generate_samples(num_samples);
-    printf("%'d ms\n", timer());
-    free(samples);
+    for (int offset = 0; offset < num_samples - fft_size; offset += fft_size) {
+        av_rdft_calc(cx, samples + offset);
+    }
+    int ms = timer();
 
+    av_rdft_end(cx);
+    return ms;
+}
+
+int main()
+{
+    int num_samples = 6 * 60 * 44100; // 6 minutes of 44.1k signal
+
+    float *samples = generate_samples(num_samples);
+
+    for (int nbits = 9; nbits <= 13; ++nbits) {
+        int ms = test(test_ffmpeg, samples, num_samples, nbits);
+        printf("ffmpeg\t%d\t%d ms\n", nbits, ms);
+    }
+
+    free(samples);
     return 0;
 }

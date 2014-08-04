@@ -1,6 +1,6 @@
-CC := gcc48
-CFLAGS := -O2 -std=c99
-LDFLAGS := -lm
+CC ?= gcc48
+CFLAGS ?= -O2 -std=c99 $(shell pkg-config --cflags libavcodec)
+LDFLAGS ?= -lm $(shell pkg-config --libs libavcodec)
 
 all: fft-bench
 
