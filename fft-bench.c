@@ -5,6 +5,7 @@
 
 #include <fftw3.h>
 #include <libavcodec/avfft.h>
+#include <djbfft/fftr4.h>
 
 // Returns time in ms since the last call.
 static int timer()
@@ -89,17 +90,41 @@ static int test_fftw_out(float *samples, int num_samples, int nbits)
     return ms;
 }
 
+static int test_djbfft(float *samples, int num_samples, int nbits)
+{
+    generate_samples(samples, num_samples);
+    int fft_size = 1 << nbits;
+
+    void (*fn)(real4 *) = NULL;
+    switch(fft_size) {
+    case 512: fn = fftr4_512; break;
+    case 1024: fn = fftr4_1024; break;
+    case 2048: fn = fftr4_2048; break;
+    case 4096: fn = fftr4_4096; break;
+    case 8192: fn = fftr4_8192; break;
+    }
+
+    timer();
+    for (int offset = 0; offset < num_samples - fft_size; offset += fft_size) {
+        fn(samples + offset);
+    }
+    int ms = timer();
+
+    return ms;
+}
+
 int main()
 {
-    int num_samples = 6 * 60 * 44100; // 6 minutes of 44.1 kHz signal
+    int num_samples = 10 * 60 * 44100; // 10 minutes of 44.1 kHz signal
     int alignment = 16; // for SIMD optimization
     void *samples = malloc(num_samples * sizeof(float) + alignment);
     float *aligned = (float *)((size_t)((char *)samples + alignment - 1) & ~(size_t)(alignment - 1));
 
     for (int nbits = 9; nbits <= 13; ++nbits) {
-        printf("ffmpeg\t%d\t%d ms\n", nbits, test(test_ffmpeg, aligned, num_samples, nbits));
-        printf("fftw/in\t%d\t%d ms\n", nbits, test(test_fftw_in, aligned, num_samples, nbits));
-        printf("fftw/ou\t%d\t%d ms\n", nbits, test(test_fftw_out, aligned, num_samples, nbits));
+        printf("lavc/i\t%d\t%d\n", nbits, test(test_ffmpeg, aligned, num_samples, nbits));
+        printf("fftw/i\t%d\t%d\n", nbits, test(test_fftw_in, aligned, num_samples, nbits));
+        printf("fftw/o\t%d\t%d\n", nbits, test(test_fftw_out, aligned, num_samples, nbits));
+        printf("djbf/i\t%d\t%d\n", nbits, test(test_djbfft, aligned, num_samples, nbits));
     }
 
     free(samples);
